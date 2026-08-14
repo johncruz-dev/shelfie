@@ -14,11 +14,38 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 
 ## Status
 
-Scaffold only. Pipeline, catalog, matching, and review UI come next.
+- [x] Project scaffold
+- [x] Messy `catalog.csv` (125 books)
+- [x] Django API skeleton + catalog load
+- [ ] Matching logic + tests
+- [ ] Local spine detection
+- [ ] Gemini OCR
+- [ ] Scan pipeline endpoint
+- [ ] Expo capture / review / library UI
 
-## Setup
+## Backend setup
 
-Coming in later commits. See commit history for incremental progress.
+```bash
+cd backend
+python -m venv venv
+# Windows: venv\Scripts\activate
+# macOS/Linux: source venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env   # or: cp .env.example .env
+python manage.py migrate
+python manage.py load_catalog
+python manage.py runserver
+```
+
+Health check: `GET http://127.0.0.1:8000/api/health/`
+
+## Frontend setup
+
+```bash
+cd frontend
+npm install
+npm start
+```
 
 ## Architecture
 
