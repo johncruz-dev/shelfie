@@ -1,11 +1,3 @@
-"""
-Catalog matching: normalize messy OCR/catalog strings and score confidence.
-
-Exact equality fails on this catalog (editions, US/UK titles, author variants,
-substring traps). Confidence blends title and author fuzzy scores, with
-penalties when a short query is only a substring of a longer catalog title.
-"""
-
 from __future__ import annotations
 
 import re
