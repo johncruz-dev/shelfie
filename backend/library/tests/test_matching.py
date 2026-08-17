@@ -1,10 +1,3 @@
-"""
-Tests for catalog matching against deliberately messy catalog cases.
-
-These use CatalogBook rows shaped like catalog.csv ambiguity tags — not full CSV load —
-so they stay fast and focused on matching behavior.
-"""
-
 import pytest
 
 from library.matching import (

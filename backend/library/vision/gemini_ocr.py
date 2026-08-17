@@ -1,11 +1,3 @@
-"""
-Hosted vision-language OCR for book spines via Google Gemini.
-
-Local YOLO/OpenCV only crops spines. This module reads title/author from those
-crops. Failures (missing key, timeout, bad JSON, unreadable spine) never raise
-into the request path — they return a structured SpineOCRResult with error set.
-"""
-
 from __future__ import annotations
 
 import json

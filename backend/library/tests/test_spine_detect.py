@@ -1,5 +1,3 @@
-"""Tests for local spine detection (OpenCV fallback + YOLO wiring)."""
-
 from unittest.mock import MagicMock, patch
 
 import numpy as np

@@ -1,15 +1,3 @@
-"""
-Local spine detection (CPU).
-
-Routing:
-- Primary: pretrained YOLOv4-tiny (COCO) via OpenCV DNN — class "book" (73).
-  Off-the-shelf Darknet weights; no training/fine-tuning; CPU only.
-- Fallback: OpenCV vertical-edge projection when YOLO finds nothing useful
-  on a dense upright shelf (common when COCO "book" fires as one blob).
-
-Hosted Gemini is not used here — this stage only localizes crops for later VLM OCR.
-"""
-
 from __future__ import annotations
 
 import urllib.request

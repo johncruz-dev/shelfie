@@ -1,5 +1,3 @@
-"""Tests for Gemini spine OCR — mocked network, real JSON/error handling."""
-
 from unittest.mock import MagicMock, patch
 
 import numpy as np
