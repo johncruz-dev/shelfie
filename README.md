@@ -8,24 +8,14 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 |-------|--------|
 | Frontend | React Native + Expo |
 | Backend | Django + Django REST Framework |
-| Local vision | YOLOv4-tiny (COCO book, OpenCV DNN, CPU) + OpenCV spine fallback |
-| Vision-language | **Google Gemini** (hosted) — title/author from spines |
+| Local vision | YOLOv4-tiny (COCO `book`, OpenCV DNN, CPU) + OpenCV vertical-edge fallback |
+| Vision-language | **Google Gemini 2.5 Flash** (hosted) — title/author from spine crops |
 | Database | SQLite |
+| Catalog | `catalog.csv` (125 messy popular titles) |
 
-## Status
+## Quick start
 
-- [x] Project scaffold
-- [x] Messy `catalog.csv` (125 books)
-- [x] Django API skeleton + catalog load
-- [x] Matching logic + tests
-- [x] Local spine detection
-- [x] Gemini OCR
-- [x] Scan pipeline endpoint
-- [x] Expo capture, upload, and results UI
-- [x] Review and library UI
-- [ ] Test photos + final README / AI_USAGE.md
-
-## Backend setup
+### Backend
 
 ```bash
 cd backend
@@ -34,44 +24,137 @@ python -m venv venv
 # macOS/Linux: source venv/bin/activate
 pip install -r requirements.txt
 copy .env.example .env   # or: cp .env.example .env
+# Put your Gemini key in backend/.env as GEMINI_API_KEY=...
 python manage.py migrate
 python manage.py load_catalog
-python manage.py runserver
+python manage.py runserver 0.0.0.0:8000
 ```
 
-Health check: `GET http://127.0.0.1:8000/api/health/`
+Health: `GET http://127.0.0.1:8000/api/health/`
 
-Scan a shelf photo:
+Scan a test photo:
 
 ```bash
-curl -F "image=@photos/your-shelf.jpg" http://127.0.0.1:8000/api/scans/
+curl -F "image=@photos/shelf_popular_mix.jpg" http://127.0.0.1:8000/api/scans/
 ```
 
-Matching tests:
+Tests:
 
 ```bash
 cd backend
 pytest
 ```
 
-## Frontend setup
+### Frontend
 
 ```bash
 cd frontend
 npm install
+# Edit .env — use your PC LAN IP when testing on a phone
 npm start
 ```
 
-For Expo Go on a physical phone, replace `localhost` in `frontend/.env` with
-your computer's LAN IP (for example, `http://192.168.1.20:8000`) and start
-Django with `python manage.py runserver 0.0.0.0:8000`.
+On a physical device, set `EXPO_PUBLIC_API_URL=http://<LAN-IP>:8000` in `frontend/.env`.
 
 ## Architecture
 
-Photo → Expo app → Django API → **local** YOLOv4-tiny / OpenCV spine detect → **hosted** Gemini OCR → catalog match → review → library.
+```
+Photo (Expo)
+  → POST /api/scans/
+  → Local YOLOv4-tiny / OpenCV   # localize spines, crop
+  → Gemini 2.5 Flash             # read title/author per crop
+  → Fuzzy catalog match          # confidence score + candidates
+  → Review UI                    # accept / correct / discard
+  → Library                      # confirmed books only
+```
 
-Local does localization/crops (CPU, free, offline-capable). Gemini only sees cropped spines (cost/latency control).
+### Local vs hosted routing
 
-## Latency & cost
+| Step | Where | Why |
+|------|--------|-----|
+| Spine localization | Local CPU (YOLOv4-tiny + OpenCV) | Free, no network, full-image pixels stay on device/server |
+| Title/author OCR | Hosted Gemini | Needs strong VLM; we only send **crops**, not the full shelf |
+| Matching | Local (rapidfuzz) | Deterministic, testable, no API cost |
+| Accept / correct / discard | Human in the loop | Model is often wrong; low-confidence never auto-saves |
 
-To be measured once the scan pipeline works.
+## Latency & cost (measured / estimated)
+
+Measured on a Windows CPU box (synthetic shelves in `photos/`), after YOLOv4-tiny weights were cached:
+
+| Stage | Per image (typical) | Notes |
+|-------|---------------------|--------|
+| Local spine detect (warm) | **~5–20 ms** | OpenCV fallback path on these synthetic shelves |
+| First-run YOLO weight download | **~15–20 s once** | `backend/models/yolov4-tiny.weights` (~23 MB) |
+| Gemini OCR (per spine, paid-rate estimate) | **~0.5–2 s** | Network + model; free tier adds RPM waits |
+| Catalog match (125 rows) | **<5 ms** | In-process rapidfuzz |
+
+**Estimated Gemini cost (paid Flash rates, for README grading):**  
+~378 input tokens/spine (prompt + image) + ~50 output ≈ **~$0.00009 / spine**.  
+Example: 8 spines ≈ **~$0.0007 / photo**. Free tier is $0 within quota; we still log the paid-equivalent estimate on each `Scan`.
+
+Re-measure on your machine after a real Gemini scan — numbers in `Scan.latency_ms` and `estimated_api_cost_usd` are the source of truth for demos.
+
+## Catalog
+
+Built in ~30 minutes with deliberate messiness (`scripts/generate_catalog.py` → `catalog.csv`):
+
+- **125** popular-ish titles people actually own
+- Edition pairs (`1984`, `Pride and Prejudice`)
+- US/UK titles (Sorcerer’s vs Philosopher’s Stone; Golden Compass / Northern Lights)
+- Shared titles (`The Road`, `Inferno`, `Twilight`/`Eclipse`)
+- Omnibus + volumes (LOTR, His Dark Materials, Hunger Games, Divine Comedy)
+- Substring traps (`It`, `Dune`, `Carrie`, `Sapiens`, `Blink`)
+- Author variants (accents, transliterations, `Last, First`, initials)
+
+## Test photos
+
+Committed under `photos/`:
+
+| File | Intent |
+|------|--------|
+| `shelf_popular_mix.jpg` | Mixed popular spines |
+| `shelf_tolkien_row.jpg` | Omnibus vs individual volumes |
+| `shelf_ambiguous.jpg` | Shared-title / substring collisions |
+| `shelf_sparse.jpg` | Sparse shelf edge case |
+
+These are **synthetic** shelves generated by `scripts/generate_test_photos.py` so reviewers can run the pipeline without private photos. Swap in real presentation shelves the same way (`curl -F image=@...`).
+
+## Key decisions & tradeoffs
+
+1. **YOLOv4-tiny via OpenCV DNN instead of Ultralytics/Torch** — Torch install failed on a flaky network; Darknet weights + OpenCV still satisfy “pretrained, CPU, no fine-tune.”
+2. **OpenCV vertical fallback** — COCO “book” often returns one blob on dense shelves; fallback splits upright rows.
+3. **Gemini only on crops** — Controls cost/latency and keeps local/hosted split explicit.
+4. **Sync scan endpoint** — Simpler demo than a job queue; fine for take-home scale (`SCAN_MAX_SPINES=20`).
+5. **Review is product UI** — Pending spines must be accepted, corrected, or discarded; never silent drop/accept.
+6. **Confidence bands** — `≥0.82` high / `≥0.45` low / else unmatched (env-tunable).
+
+## What we cut / unfinished
+
+- No auth, no deployment, no polish beyond usable UI
+- YOLO book class is weak on spine-on shelves → heavy reliance on OpenCV fallback for many photos
+- No async job queue / progress streaming for long Gemini batches
+- No ISBN barcode path
+- Catalog is English-heavy popular fiction/nonfiction, not exhaustive
+
+### With another day
+
+- Calibrate detector on real shelf photos; consider a spine-specific ONNX model
+- Batch Gemini calls carefully under free-tier RPM with retries
+- Offline/demo mode that skips Gemini and uses fixture OCR
+- Measure and publish real end-to-end latency/cost from your network once
+
+## API map
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/health/` | Liveness + catalog count |
+| POST | `/api/scans/` | Upload shelf image, run pipeline |
+| GET | `/api/scans/{id}/` | Scan + detections |
+| POST | `/api/scans/{id}/accept-high-confidence/` | Bulk-add ready matches |
+| POST | `/api/detections/{id}/accept\|correct\|discard/` | Human review |
+| GET/POST | `/api/library/` | Personal library |
+| GET | `/api/catalog/` | Catalog browse |
+
+## AI usage
+
+See [`AI_USAGE.md`](./AI_USAGE.md).
