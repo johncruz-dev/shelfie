@@ -117,6 +117,11 @@ CATALOG_CSV_PATH = Path(
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# Matching thresholds (used in later commits)
+# Matching thresholds
 MATCH_HIGH_CONFIDENCE = float(os.getenv("MATCH_HIGH_CONFIDENCE", "0.82"))
 MATCH_LOW_CONFIDENCE = float(os.getenv("MATCH_LOW_CONFIDENCE", "0.45"))
+
+# Local spine detection (YOLOv4-tiny COCO "book" via OpenCV DNN + vertical fallback)
+SPINE_MODEL_DIR = os.getenv("SPINE_MODEL_DIR") or str(BASE_DIR / "models")
+SPINE_YOLO_CONF = float(os.getenv("SPINE_YOLO_CONF", "0.25"))
+SPINE_YOLO_IOU = float(os.getenv("SPINE_YOLO_IOU", "0.45"))

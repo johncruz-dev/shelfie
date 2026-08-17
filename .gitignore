@@ -8,6 +8,13 @@ backend/venv/
 *.sqlite3
 db.sqlite3
 backend/media/
+backend/models/
+backend/yolov*.pt
+backend/yolov*.weights
+backend/runs/
+*.pt
+*.weights
+*.onnx
 
 # Node / Expo
 **/node_modules/

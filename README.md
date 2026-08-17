@@ -8,7 +8,7 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 |-------|--------|
 | Frontend | React Native + Expo |
 | Backend | Django + Django REST Framework |
-| Local vision | TBD (pretrained, CPU) — spine detection |
+| Local vision | YOLOv4-tiny (COCO book, OpenCV DNN, CPU) + OpenCV spine fallback |
 | Vision-language | **Google Gemini** (hosted) — title/author from spines |
 | Database | SQLite |
 
@@ -18,7 +18,7 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Messy `catalog.csv` (125 books)
 - [x] Django API skeleton + catalog load
 - [x] Matching logic + tests
-- [ ] Local spine detection
+- [x] Local spine detection
 - [ ] Gemini OCR
 - [ ] Scan pipeline endpoint
 - [ ] Expo capture / review / library UI
@@ -56,7 +56,9 @@ npm start
 
 ## Architecture
 
-Photo → Expo app → Django API → local spine detect → Gemini OCR → catalog match → review → library.
+Photo → Expo app → Django API → **local** YOLOv4-tiny / OpenCV spine detect → **hosted** Gemini OCR → catalog match → review → library.
+
+Local does localization/crops (CPU, free, offline-capable). Gemini only sees cropped spines (cost/latency control).
 
 ## Latency & cost
 
