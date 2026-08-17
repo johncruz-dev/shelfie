@@ -17,7 +17,7 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Project scaffold
 - [x] Messy `catalog.csv` (125 books)
 - [x] Django API skeleton + catalog load
-- [ ] Matching logic + tests
+- [x] Matching logic + tests
 - [ ] Local spine detection
 - [ ] Gemini OCR
 - [ ] Scan pipeline endpoint
@@ -38,6 +38,13 @@ python manage.py runserver
 ```
 
 Health check: `GET http://127.0.0.1:8000/api/health/`
+
+Matching tests:
+
+```bash
+cd backend
+pytest
+```
 
 ## Frontend setup
 
