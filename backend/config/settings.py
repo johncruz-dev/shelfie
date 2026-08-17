@@ -113,9 +113,10 @@ CATALOG_CSV_PATH = Path(
     os.getenv("CATALOG_CSV_PATH", str(REPO_ROOT / "catalog.csv"))
 )
 
-# Gemini (used in later commits)
+# Gemini (hosted VLM for spine OCR)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_TIMEOUT_SEC = float(os.getenv("GEMINI_TIMEOUT_SEC", "30"))
 
 # Matching thresholds
 MATCH_HIGH_CONFIDENCE = float(os.getenv("MATCH_HIGH_CONFIDENCE", "0.82"))

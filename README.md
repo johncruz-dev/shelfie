@@ -19,7 +19,7 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Django API skeleton + catalog load
 - [x] Matching logic + tests
 - [x] Local spine detection
-- [ ] Gemini OCR
+- [x] Gemini OCR
 - [ ] Scan pipeline endpoint
 - [ ] Expo capture / review / library UI
 
