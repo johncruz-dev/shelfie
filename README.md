@@ -21,7 +21,8 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Local spine detection
 - [x] Gemini OCR
 - [x] Scan pipeline endpoint
-- [ ] Expo capture / review / library UI
+- [x] Expo capture, upload, and results UI
+- [ ] Review and library UI
 
 ## Backend setup
 
@@ -59,6 +60,10 @@ cd frontend
 npm install
 npm start
 ```
+
+For Expo Go on a physical phone, replace `localhost` in `frontend/.env` with
+your computer's LAN IP (for example, `http://192.168.1.20:8000`) and start
+Django with `python manage.py runserver 0.0.0.0:8000`.
 
 ## Architecture
 
