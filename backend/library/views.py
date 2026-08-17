@@ -1,12 +1,24 @@
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from .matching import classify_confidence
-from .models import CatalogBook, LibraryItem, Scan
+from .models import CatalogBook, DetectedBook, LibraryItem, Scan
 from .pipeline import process_scan
-from .serializers import CatalogBookSerializer, LibraryItemSerializer, ScanSerializer
+from .review import (
+    ReviewError,
+    accept_detection,
+    accept_high_confidence,
+    correct_detection,
+    discard_detection,
+)
+from .serializers import (
+    CatalogBookSerializer,
+    DetectedBookSerializer,
+    LibraryItemSerializer,
+    ScanSerializer,
+)
 
 
 @api_view(["GET"])
@@ -15,6 +27,7 @@ def health(request):
         {
             "status": "ok",
             "catalog_count": CatalogBook.objects.count(),
+            "library_count": LibraryItem.objects.count(),
         }
     )
 
@@ -70,6 +83,58 @@ class ScanViewSet(viewsets.ModelViewSet):
         data["summary"] = _scan_summary(instance)
         return Response(data)
 
+    @action(detail=True, methods=["post"], url_path="accept-high-confidence")
+    def accept_high_confidence(self, request, pk=None):
+        result = accept_high_confidence(int(pk))
+        return Response(result)
+
+
+class DetectedBookViewSet(viewsets.GenericViewSet):
+    """Review actions for individual spine detections."""
+
+    queryset = DetectedBook.objects.select_related("matched_book", "scan").all()
+    serializer_class = DetectedBookSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def retrieve(self, request, *args, **kwargs):
+        detection = self.get_object()
+        return Response(
+            DetectedBookSerializer(detection, context={"request": request}).data
+        )
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        detection = self.get_object()
+        try:
+            detection, library_item = accept_detection(
+                detection,
+                catalog_id=request.data.get("catalog_id"),
+                add_to_library=request.data.get("add_to_library", True),
+            )
+        except ReviewError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(_review_payload(request, detection, library_item))
+
+    @action(detail=True, methods=["post"])
+    def correct(self, request, pk=None):
+        detection = self.get_object()
+        try:
+            detection, library_item = correct_detection(
+                detection,
+                title=request.data.get("title", ""),
+                author=request.data.get("author", ""),
+                catalog_id=request.data.get("catalog_id"),
+                add_to_library=request.data.get("add_to_library", True),
+            )
+        except ReviewError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(_review_payload(request, detection, library_item))
+
+    @action(detail=True, methods=["post"])
+    def discard(self, request, pk=None):
+        detection = discard_detection(self.get_object())
+        return Response(_review_payload(request, detection, None))
+
 
 class LibraryItemViewSet(viewsets.ModelViewSet):
     queryset = LibraryItem.objects.select_related("catalog_book").all()
@@ -77,16 +142,60 @@ class LibraryItemViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def create(self, request, *args, **kwargs):
+        """
+        Accept either a plain library row or {detection_id, ...} to confirm
+        from a scan detection.
+        """
+        detection_id = request.data.get("detection_id")
+        if detection_id:
+            try:
+                detection = DetectedBook.objects.select_related("matched_book").get(
+                    pk=detection_id
+                )
+            except DetectedBook.DoesNotExist:
+                return Response(
+                    {"detail": "detection not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            try:
+                detection, library_item = accept_detection(
+                    detection,
+                    catalog_id=request.data.get("catalog_id"),
+                    add_to_library=True,
+                )
+            except ReviewError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                LibraryItemSerializer(library_item, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+def _review_payload(request, detection, library_item):
+    payload = {
+        "detection": DetectedBookSerializer(detection, context={"request": request}).data,
+    }
+    if library_item is not None:
+        payload["library_item"] = LibraryItemSerializer(
+            library_item, context={"request": request}
+        ).data
+    else:
+        payload["library_item"] = None
+    return payload
+
+
 def _scan_summary(scan: Scan) -> dict:
     detections = list(scan.detections.all())
     high = low = unmatched = ocr_failed = 0
+    pending_review = 0
     for det in detections:
+        if det.review_status == DetectedBook.ReviewStatus.PENDING:
+            pending_review += 1
         if det.ocr_error and not det.raw_title and not det.raw_author:
             ocr_failed += 1
         conf = det.match_confidence
@@ -103,7 +212,7 @@ def _scan_summary(scan: Scan) -> dict:
     return {
         "detection_count": len(detections),
         "high_confidence": high,
-        "needs_review": low + unmatched + ocr_failed,
+        "needs_review": pending_review,
         "low_confidence": low,
         "unmatched": unmatched,
         "ocr_failed": ocr_failed,

@@ -22,7 +22,8 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Gemini OCR
 - [x] Scan pipeline endpoint
 - [x] Expo capture, upload, and results UI
-- [ ] Review and library UI
+- [x] Review and library UI
+- [ ] Test photos + final README / AI_USAGE.md
 
 ## Backend setup
 
