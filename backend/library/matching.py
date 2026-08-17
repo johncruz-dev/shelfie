@@ -58,7 +58,6 @@ def normalize_author(value: str) -> str:
     text = _INITIALS_RE.sub(r"\1", text)  # "j.k." / "j. k." -> "jk" / "j k"
     text = _PUNCT_RE.sub(" ", text)
     text = _SPACE_RE.sub(" ", text).strip()
-    # Collapse spaced single initials: "j k rowling" -> "jk rowling"
     parts = text.split()
     collapsed: list[str] = []
     buffer = ""
