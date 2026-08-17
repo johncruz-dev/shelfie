@@ -20,7 +20,7 @@ Mobile app that turns a bookshelf photo into a structured personal library.
 - [x] Matching logic + tests
 - [x] Local spine detection
 - [x] Gemini OCR
-- [ ] Scan pipeline endpoint
+- [x] Scan pipeline endpoint
 - [ ] Expo capture / review / library UI
 
 ## Backend setup
@@ -38,6 +38,12 @@ python manage.py runserver
 ```
 
 Health check: `GET http://127.0.0.1:8000/api/health/`
+
+Scan a shelf photo:
+
+```bash
+curl -F "image=@photos/your-shelf.jpg" http://127.0.0.1:8000/api/scans/
+```
 
 Matching tests:
 
